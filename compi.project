@@ -1,0 +1,6 @@
+#
+#Sun Jan 26 16:57:45 CET 2020
+hub.pipeline.alias=two-way-blast
+compi.version=1.2.3
+hub.pipeline.id=5e2db6f9e1138700316488be
+image.name=pegi3s/two-way-blast

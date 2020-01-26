@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<pipeline xmlns="http://www.sing-group.org/compi/pipeline-1.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<version>1.0.0</version>
+
+	<params>
+		<param name="working_dir" shortName="w" global="true" defaultValue="/working_dir">Path of the working directory.</param>
+		<param name="input_dir" shortName="id" global="true" defaultValue="/input">Path of the input directory.</param>
+		<param name="output_dir" shortName="od" global="true" defaultValue="/output">Path of the output directory.</param>
+		<param name="blast_type" shortName="bt">BLAST type to use when finding orthologs.</param>
+		<param name="reference_file" shortName="rf">Name of the reference genome file. This file must exist in the input_dir.</param>
+	</params>
+
+	<tasks>
+		<task id="initialization" params="blast_type">
+            mkdir -p ${working_dir}/temp -p ${working_dir}/files -p ${working_dir}/databases
+		</task>
+		<foreach id="prepare-files-and-dbs" after="initialization"
+			of="command" in="ls ${input_dir}/*" as="file" params="blast_type">
+				if [ -s $file ]
+				then
+					FILENAME=$(basename -- "${file}")
+
+					sed '/^>/ s/$/#######/g' ${file} > ${working_dir}/temp/${FILENAME}.temp1
+					sed -z 's/\r//g' ${working_dir}/temp/${FILENAME}.temp1 > ${working_dir}/temp/${FILENAME}.temp2
+					sed -z 's/\n//g' ${working_dir}/temp/${FILENAME}.temp2 > ${working_dir}/temp/${FILENAME}.temp3
+					sed -i 's/>/\n>/g' ${working_dir}/temp/${FILENAME}.temp3
+					sed -i 's/#######/\n/g' ${working_dir}/temp/${FILENAME}.temp3
+					sed -i '1d' ${working_dir}/temp/${FILENAME}.temp3
+
+					mv  ${working_dir}/temp/${FILENAME}.temp3 ${working_dir}/files/${FILENAME}
+					rm ${working_dir}/temp/${FILENAME}.temp*
+
+					makeblastdb -in ${working_dir}/files/${FILENAME} -dbtype nucl -parse_seqids -out ${working_dir}/databases/${FILENAME}
+				fi
+		</foreach>
+		<task id="split-reference" after="prepare-files-and-dbs" params="reference_file">
+            rm -rf ${working_dir}/reference_file_split
+			seqkit split --by-size 1 ${working_dir}/files/${reference_file} --out-dir ${working_dir}/reference_file_split
+		</task>
+		<task id="create-combinations-file" after="split-reference">
+			rm -f ${working_dir}/temp/combinations
+			for ref_file in $(ls ${working_dir}/reference_file_split); do
+				for input_file in $(ls ${working_dir}/files); do
+					echo $ref_file $input_file >> ${working_dir}/temp/combinations
+				done 
+			done
+		</task>
+		<foreach id="run-blast" after="create-combinations-file"
+		   of="command" in="cat ${working_dir}/temp/combinations" as="combination"
+		   params="blast_type reference_file">
+			reference=$(echo ${combination} | cut -f1 -d' ')
+			file=$(echo ${combination} | cut -f2 -d' ')
+			combination="${reference}_${file}"
+			
+			${blast_type} -query ${working_dir}/reference_file_split/${reference} -db ${working_dir}/databases/${file} -evalue 0.05 -max_target_seqs 1 -outfmt 6 -out ${working_dir}/temp/${combination}.output.1
+			
+			seqref=$(cut -f1 ${working_dir}/temp/${combination}.output.1 | head -1)
+			seqID1=$(cut -f2 ${working_dir}/temp/${combination}.output.1 | head -1)
+
+			if [ -z "$seqID1" ]
+			then
+				echo "No Blast hit"
+			else
+				echo "Got a Blast hit"
+				grep -A1 $seqID1 ${working_dir}/files/${file} > ${working_dir}/temp/${combination}.seq
+
+				${blast_type} -query ${working_dir}/temp/${combination}.seq -db ${working_dir}/databases/${reference_file} -evalue 0.05 -max_target_seqs 1 -outfmt 6 -out ${working_dir}/temp/${combination}.output.2
+
+				seqID2=$(cut -f2 ${working_dir}/temp/${combination}.output.2 | head -1)
+				if [ "$seqref" == "$seqID2" ]
+				then
+					grep -A1 $seqID1 ${working_dir}/files/${file} >> ${output_dir}/$seqref.orthologs
+				fi
+			fi
+
+			rm ${working_dir}/temp/${combination}.*
+		</foreach>
+	</tasks>
+
+	<metadata>
+		<task-description id="initialization">Initializes the working directory, creating the neccessary intermediate directories for the other pipeline tasks.</task-description>
+		<task-description id="prepare-files-and-dbs">Copies the input files to the working directory in order to prepare them and create the BLAST databases.</task-description>
+		<task-description id="split-reference">Splits the reference file to create one file for each sequence contained in it.</task-description>
+		<task-description id="create-combinations-file">Creates the combinations file containing all possible pairs of reference sequences and input files.</task-description>
+		<task-description id="run-blast">For each pair of reference sequence and input file, runs the two-way BLAST method for finding orthologs, writing the outputs in the output directory.</task-description>
+	</metadata>
+</pipeline>
