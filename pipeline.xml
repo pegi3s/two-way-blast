@@ -2,7 +2,7 @@
 
 <pipeline xmlns="http://www.sing-group.org/compi/pipeline-1.0"
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-	<version>1.0.0</version>
+	<version>1.1.0</version>
 
 	<params>
 		<param name="working_dir" shortName="w" global="true" defaultValue="/working_dir">Path of the working directory.</param>
@@ -13,12 +13,17 @@
 	</params>
 
 	<tasks>
-		<task id="initialization" params="blast_type">
-            mkdir -p ${working_dir}/temp -p ${working_dir}/files -p ${working_dir}/databases
+		<task id="initialization" params="reference_file">
+			if [ ! -f ${input_dir}/${reference_file} ]
+			then
+				echo "Error: the specified reference file (${reference_file}) can't be found in the input directory."
+				exit -1
+			fi
+			mkdir -p ${working_dir}/temp -p ${working_dir}/files -p ${working_dir}/databases
 		</task>
 		<foreach id="prepare-files-and-dbs" after="initialization"
 			of="command" in="ls ${input_dir}/*" as="file" params="blast_type">
-				if [ -s $file ]
+				if [ -s ${file} ]
 				then
 					FILENAME=$(basename -- "${file}")
 
@@ -36,12 +41,12 @@
 				fi
 		</foreach>
 		<task id="split-reference" after="prepare-files-and-dbs" params="reference_file">
-            rm -rf ${working_dir}/reference_file_split
-			seqkit split --by-size 1 ${working_dir}/files/${reference_file} --out-dir ${working_dir}/reference_file_split
+            rm -rf ${working_dir}/reference_split
+			seqkit split --by-size 1 ${working_dir}/files/${reference_file} --out-dir ${working_dir}/reference_split
 		</task>
 		<task id="create-combinations-file" after="split-reference">
 			rm -f ${working_dir}/temp/combinations
-			for ref_file in $(ls ${working_dir}/reference_file_split); do
+			for ref_file in $(ls ${working_dir}/reference_split); do
 				for input_file in $(ls ${working_dir}/files); do
 					echo $ref_file $input_file >> ${working_dir}/temp/combinations
 				done 
@@ -54,7 +59,7 @@
 			file=$(echo ${combination} | cut -f2 -d' ')
 			combination="${reference}_${file}"
 			
-			${blast_type} -query ${working_dir}/reference_file_split/${reference} -db ${working_dir}/databases/${file} -evalue 0.05 -max_target_seqs 1 -outfmt 6 -out ${working_dir}/temp/${combination}.output.1
+			${blast_type} -query ${working_dir}/reference_split/${reference} -db ${working_dir}/databases/${file} -evalue 0.05 -max_target_seqs 1 -outfmt 6 -out ${working_dir}/temp/${combination}.output.1
 			
 			seqref=$(cut -f1 ${working_dir}/temp/${combination}.output.1 | head -1)
 			seqID1=$(cut -f2 ${working_dir}/temp/${combination}.output.1 | head -1)
