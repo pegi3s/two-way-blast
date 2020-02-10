@@ -23,6 +23,8 @@ In these command, you should replace:
 
 By default, this command launches the compi pipeline with the default number of parallel tasks (6). In order to launch the pipeline with more parallel tasks, add the `--num-tasks <num_tasks>` parameter right before the `--`.
 
+Also note that the `-q` parameter disables Compi progress logs into the console. Remove it in case you want to see them. In addition, you can also use `-o` parameter to see log messages of the underlying operations (i.e. BLAST commands).
+
 # Test data
 
 The sample data is available [here](https://github.com/pegi3s/two-way-blast/raw/master/resources/test-data-two-way-blast.zip). Download, uncompress it and move to the `test-data-two-way-blast` directory, where you will find:
