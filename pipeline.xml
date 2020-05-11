@@ -2,7 +2,7 @@
 
 <pipeline xmlns="http://www.sing-group.org/compi/pipeline-1.0"
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-	<version>1.1.0</version>
+	<version>1.1.1</version>
 
 	<params>
 		<param name="working_dir" shortName="w" global="true" defaultValue="/working_dir">Path of the working directory.</param>
@@ -69,14 +69,14 @@
 				echo "No Blast hit"
 			else
 				echo "Got a Blast hit"
-				grep -A1 $seqID1 ${working_dir}/files/${file} > ${working_dir}/temp/${combination}.seq
+				grep -w -A1 $seqID1 ${working_dir}/files/${file} > ${working_dir}/temp/${combination}.seq
 
 				${blast_type} -query ${working_dir}/temp/${combination}.seq -db ${working_dir}/databases/${reference_file} -evalue 0.05 -max_target_seqs 1 -outfmt 6 -out ${working_dir}/temp/${combination}.output.2
 
 				seqID2=$(cut -f2 ${working_dir}/temp/${combination}.output.2 | head -1)
 				if [ "$seqref" == "$seqID2" ]
 				then
-					grep -A1 $seqID1 ${working_dir}/files/${file} >> ${output_dir}/$seqref.orthologs
+					grep -w -A1 $seqID1 ${working_dir}/files/${file} >> ${output_dir}/$seqref.orthologs
 				fi
 			fi
 
