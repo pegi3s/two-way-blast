@@ -2,7 +2,7 @@
 
 <pipeline xmlns="http://www.sing-group.org/compi/pipeline-1.0"
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-	<version>1.1.1</version>
+	<version>1.1.2</version>
 
 	<params>
 		<param name="working_dir" shortName="w" global="true" defaultValue="/working_dir">Path of the working directory.</param>
@@ -19,7 +19,7 @@
 				echo "Error: the specified reference file (${reference_file}) can't be found in the input directory."
 				exit -1
 			fi
-			mkdir -p ${working_dir}/temp -p ${working_dir}/files -p ${working_dir}/databases
+			mkdir -p ${working_dir}/temp -p ${working_dir}/files -p ${working_dir}/databases -p ${working_dir}/locks
 		</task>
 		<foreach id="prepare-files-and-dbs" after="initialization"
 			of="command" in="ls ${input_dir}/*" as="file" params="blast_type">
@@ -49,12 +49,14 @@
 			for ref_file in $(ls ${working_dir}/reference_split); do
 				for input_file in $(ls ${working_dir}/files); do
 					echo $ref_file $input_file >> ${working_dir}/temp/combinations
+					touch ${working_dir}/locks/${ref_file}
 				done 
 			done
 		</task>
 		<foreach id="run-blast" after="create-combinations-file"
-		   of="command" in="cat ${working_dir}/temp/combinations" as="combination"
-		   params="blast_type reference_file">
+			of="command" in="cat ${working_dir}/temp/combinations" as="combination"
+			params="blast_type reference_file">
+			<![CDATA[
 			reference=$(echo ${combination} | cut -f1 -d' ')
 			file=$(echo ${combination} | cut -f2 -d' ')
 			combination="${reference}_${file}"
@@ -76,11 +78,14 @@
 				seqID2=$(cut -f2 ${working_dir}/temp/${combination}.output.2 | head -1)
 				if [ "$seqref" == "$seqID2" ]
 				then
-					grep -w -A1 $seqID1 ${working_dir}/files/${file} >> ${output_dir}/$seqref.orthologs
+					( flock 99
+						grep -w -A1 $seqID1 ${working_dir}/files/${file} >> ${output_dir}/$seqref.orthologs
+					) 99<"${working_dir}/locks/${reference}"
 				fi
 			fi
 
 			rm ${working_dir}/temp/${combination}.*
+			]]>
 		</foreach>
 	</tasks>
 
