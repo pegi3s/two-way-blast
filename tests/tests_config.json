@@ -1,0 +1,10 @@
+{
+  "tests": [
+    {
+      "name": "two-way-blast-1",
+      "description": "End-to-end test on the provided sample data (nucleotide.fasta, tblastx)",
+      "estimated_runtime_minutes": 2,
+      "last_run": "03/06/2026"
+    }
+  ]
+}
